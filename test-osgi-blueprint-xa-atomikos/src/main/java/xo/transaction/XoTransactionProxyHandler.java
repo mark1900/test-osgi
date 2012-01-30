@@ -46,7 +46,7 @@ public class XoTransactionProxyHandler implements InvocationHandler
     }
 
 
-    @Override
+
     public Object invoke( Object proxyObject, Method method, Object[] args ) throws Throwable
     {
 
