@@ -5,6 +5,8 @@ package xo.transaction;
 
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import javax.transaction.TransactionManager;
 
@@ -30,6 +32,9 @@ public class XoTransactionProxyHandler implements InvocationHandler
     protected int timeout;
 
     protected Object targetObject;
+    protected String targetObjectRegexMethodFilter;
+
+    protected Pattern targetObjectRegexMethodFilterPattern;
 
 
     public XoTransactionProxyHandler()
@@ -43,45 +48,66 @@ public class XoTransactionProxyHandler implements InvocationHandler
         timeout = -1;  // No timeout
 
         targetObject = null;
+
+        setTargetObjectRegexMethodFilter( ".*" );
+
     }
 
 
-
+    @Override
     public Object invoke( Object proxyObject, Method method, Object[] args ) throws Throwable
     {
 
-        LOG.info( "Begin XoTransactionProxyHandler [" + this.toString() + "]" );
+        Object returnValue;
 
-        try
+        Matcher matcher = targetObjectRegexMethodFilterPattern.matcher( method.getName() );
+
+        if ( matcher.find() )
         {
 
-            if ( null != platformTransactionManager )
+            try
             {
-                doTransactionWithPlatformTransactionManager( proxyObject, method, args );
+
+                LOG.debug( "Begin Transaction Handling [" + this.toString() + "]" );
+
+                if ( null != platformTransactionManager )
+                {
+                    returnValue = doTransactionWithPlatformTransactionManager( proxyObject, method, args );
+                }
+                else if ( null != standardTransactionManager )
+                {
+                    returnValue = doTransactionWithStandardTransactionManager( proxyObject, method, args );
+                }
+                else
+                {
+                    throw new IllegalArgumentException( "No Transaction Manager set" );
+                }
+
             }
-            else
+            finally
             {
-                doTransactionWithStandardTransactionManager( proxyObject, method, args );
+                LOG.debug( "End Transaction Handling [" + this.toString() + "]" );
             }
 
         }
-        finally
+        else
         {
-            LOG.info( "End XoTransactionProxyHandler [" + this.toString() + "]" );
+            LOG.debug( "Skipping Transaction Handling for "
+                       + "[" + this.targetObject.getClass().getName() + "." + method.getName() + "]" );
+            returnValue = method.invoke( this.targetObject, args );
         }
 
-        return null;
+        return returnValue;
 
     }
 
-    public void doTransactionWithPlatformTransactionManager(
+    public Object doTransactionWithPlatformTransactionManager(
         @SuppressWarnings( "unused" ) Object proxyObject, Method method, Object[] args )
     {
 
-        LOG.info( "doTransactionCommit() -> BEGIN" );
+        LOG.debug( "doTransactionCommit() -> BEGIN" );
 
-
-
+        Object returnValue;
 
         TransactionStatus transactionStatus;
 
@@ -104,13 +130,13 @@ public class XoTransactionProxyHandler implements InvocationHandler
         catch ( Exception e )
         {
             LOG.error( "Transaction failed:  ", e );
-            return;
+            throw new RuntimeException( e );
         }
 
         try
         {
 
-            method.invoke( this.targetObject, args );
+            returnValue = method.invoke( this.targetObject, args );
             platformTransactionManager.commit( transactionStatus );
 
         }
@@ -131,21 +157,26 @@ public class XoTransactionProxyHandler implements InvocationHandler
             throw new RuntimeException( e1 );
         }
 
-        LOG.info( "doTransactionCommit() <- END" );
+
+        LOG.debug( "doTransactionCommit() <- END" );
+
+        return returnValue;
 
     }
 
-    public void doTransactionWithStandardTransactionManager(
+    public Object doTransactionWithStandardTransactionManager(
         @SuppressWarnings( "unused" ) Object proxyObject, Method method, Object[] args )
     {
 
-        LOG.info( "doTransactionCommit() -> BEGIN" );
+        LOG.debug( "doTransactionCommit() -> BEGIN" );
+
+        Object returnValue;
 
         try
         {
             standardTransactionManager.begin();
 
-            method.invoke( this.targetObject, args );
+            returnValue = method.invoke( this.targetObject, args );
             standardTransactionManager.commit();
 
         }
@@ -166,7 +197,9 @@ public class XoTransactionProxyHandler implements InvocationHandler
             throw new RuntimeException( e1 );
         }
 
-        LOG.info( "doTransactionCommit() <- END" );
+        LOG.debug( "doTransactionCommit() <- END" );
+
+        return returnValue;
 
     }
 
@@ -279,6 +312,28 @@ public class XoTransactionProxyHandler implements InvocationHandler
     }
 
 
+
+
+    /**
+     * @return the targetObjectRegexMethodFilter
+     */
+    public String getTargetObjectRegexMethodFilter()
+    {
+        return targetObjectRegexMethodFilter;
+    }
+
+
+    /**
+     * @param targetObjectRegexMethodFilter the targetObjectRegexMethodFilter to set
+     */
+    public void setTargetObjectRegexMethodFilter( String targetObjectRegexMethodFilter )
+    {
+        this.targetObjectRegexMethodFilter = targetObjectRegexMethodFilter;
+        targetObjectRegexMethodFilterPattern = Pattern.compile( targetObjectRegexMethodFilter, Pattern.DOTALL | Pattern.MULTILINE  );
+
+    }
+
+
     /**
      * {@inheritDoc}
      */
@@ -288,7 +343,9 @@ public class XoTransactionProxyHandler implements InvocationHandler
         return "XoTransactionProxyHandler [standardTransactionManager=" + standardTransactionManager
                 + ", platformTransactionManager=" + platformTransactionManager + ", propagationBehaviorName="
                 + propagationBehaviorName + ", isolationLevelName=" + isolationLevelName + ", timeout="
-                + timeout + ", targetObject=" + targetObject + "]";
+                + timeout + ", targetObject=" + targetObject + ", targetObjectRegexMethodFilter="
+                + targetObjectRegexMethodFilter + "]";
     }
+
 
 }
