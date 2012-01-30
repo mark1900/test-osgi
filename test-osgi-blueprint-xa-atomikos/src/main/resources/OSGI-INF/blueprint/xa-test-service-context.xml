@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<blueprint xmlns="http://www.osgi.org/xmlns/blueprint/v1.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:cm="http://aries.apache.org/blueprint/xmlns/blueprint-cm/v1.1.0"
+    >
+
+
+    <bean id="xaServiceTest" class="test.xa.service.XaServiceTest">
+        <property name="transactionServiceBean" ref="transactionServiceBeanProxy" />
+        <property name="transactionServiceBeanTester" ref="transactionServiceBeanTester" />
+    </bean>
+
+    <bean id="transactionServiceBeanProxy" class="xo.transaction.XoProxyFactory" factory-method="createProxy" >
+        <argument value="test.xa.service.TransactionServiceBean"/>
+        <argument ref="xoTransactionProxyHandler"/>
+    </bean>
+
+    <bean id="xoTransactionProxyHandler" class="xo.transaction.XoTransactionProxyHandler">
+        <property name="platformTransactionManager" ref="jtaTransactionManager" />
+        <property name="propagationBehaviorName" value="PROPAGATION_REQUIRED" />
+        <property name="isolationLevelName" value="ISOLATION_REPEATABLE_READ" />
+        <property name="timeout" value="${transactionTimeout}" />
+        <property name="targetObject" ref="transactionServiceBean" />
+    </bean>
+
+
+    <bean id="transactionServiceBean" class="test.xa.service.TransactionServiceBeanImpl">
+        <property name="persistenceHelper" ref="persistenceHelperXa" />
+    </bean>
+
+
+    <bean id="transactionServiceBeanTester" class="test.xa.service.TransactionServiceBeanTester">
+        <property name="persistenceHelper" ref="persistenceHelperNonXa" />
+    </bean>
+
+
+</blueprint>

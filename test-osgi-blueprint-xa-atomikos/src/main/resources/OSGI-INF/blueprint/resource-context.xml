@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<blueprint xmlns="http://www.osgi.org/xmlns/blueprint/v1.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:cm="http://aries.apache.org/blueprint/xmlns/blueprint-cm/v1.1.0"
+    xsi:schemaLocation="http://www.osgi.org/xmlns/blueprint/v1.0.0 http://www.osgi.org/xmlns/blueprint/v1.0.0/blueprint.xsd
+                        http://camel.apache.org/schema/blueprint http://camel.apache.org/schema/blueprint/camel-blueprint.xsd">
+
+
+    <!-- Properties in file:  apache-servicemix-4.4.0\etc\xa-test.cfg -->
+    <cm:property-placeholder persistent-id="test_xa_atomikos" update-strategy="reload">
+        <cm:default-properties>
+            <cm:property name="dbServerName" value="localhost" />
+            <cm:property name="dbServerPort" value="1433" />
+            <cm:property name="dbName" value="theDatabaseName" />
+            <cm:property name="dbUser" value="theDatabaseUserName" />
+            <cm:property name="dbPassword" value="theDatabaseUserPassword" />
+            <cm:property name="dsMaxConnectionPoolSize" value="30" />
+            <cm:property name="jmsMaxConnectionPoolSize" value="10" />
+            <cm:property name="transactionTimeout" value="60" /> <!-- In Seconds -->
+        </cm:default-properties>
+    </cm:property-placeholder>
+
+
+    <!-- Camel Specific Beans -->
+
+    <bean id="activemq" class="org.apache.activemq.camel.component.ActiveMQComponent">
+        <property name="transactionManager" ref="jtaTransactionManager"/>
+        <property name="cacheLevelName" value="CACHE_NONE"/>
+        <property name="transacted" value="true"/>
+    </bean>
+
+    <bean id="jms" class="org.apache.camel.component.jms.JmsComponent">
+        <property name="transactionManager" ref="jtaTransactionManager"/>
+        <property name="cacheLevelName" value="CACHE_NONE"/>
+        <property name="transacted" value="true"/>
+    </bean>
+
+
+    <!--
+    ###################################################################################################################
+    #
+    #
+    #  External Resources (JMS Connections + Database Connections)
+    #
+    #
+    ###################################################################################################################
+     -->
+
+     <!--
+
+     http://blog.bigrocksoftware.com/2010/04/30/atomikos-activemq-hibernate/
+     http://activemq.apache.org/jms-and-jdbc-operations-in-one-transaction.html
+
+     http://servicemix.396122.n5.nabble.com/JMS-and-Database-interactions-under-the-same-transactional-context-td4762819.html
+     http://fusesource.com/forums/thread.jspa?threadID=3322&tstart=0
+      -->
+
+    <bean id="atomikosTransactionManager" class="com.atomikos.icatch.jta.UserTransactionManager" init-method="init" destroy-method="close" >
+        <property name="forceShutdown" value="false" />
+    </bean>
+
+
+
+    <bean id="atomikosUserTransaction" class="com.atomikos.icatch.jta.UserTransactionImp" >
+        <property name="transactionTimeout" value="${transactionTimeout}" />
+    </bean>
+
+
+    <bean id="jtaTransactionManager" class="org.springframework.transaction.jta.JtaTransactionManager">
+        <property name="transactionManager" ref="atomikosTransactionManager" />
+        <property name="userTransaction" ref="atomikosUserTransaction" />
+        <property name="allowCustomIsolationLevels" value="true" />
+    </bean>
+
+
+    <bean id="PROPAGATION_REQUIRED" class="org.apache.camel.spring.spi.SpringTransactionPolicy">
+        <property name="transactionManager" ref="jtaTransactionManager" />
+        <property name="transactionTemplate" ref="transactionTemplate" />
+        <property name="propagationBehaviorName" value="PROPAGATION_REQUIRED" />
+    </bean>
+
+    <bean id="transactionTemplate"  class="org.springframework.transaction.support.TransactionTemplate">
+        <property name="transactionManager" ref="jtaTransactionManager" />
+        <property name="isolationLevelName" value="ISOLATION_REPEATABLE_READ"/>
+        <property name="timeout" value="10"/>
+    </bean>
+
+
+    <bean id="atomikosXaConnectionFactoryBean" class="com.atomikos.jms.AtomikosConnectionFactoryBean" init-method="init" destroy-method="close">
+        <property name="uniqueResourceName" value="amq1" />
+        <property name="xaConnectionFactory" ref="jmsXaConnectionFactory" />
+        <property name="localTransactionMode" value ="false" />
+        <property name="minPoolSize" value="2"/>
+        <property name="maxPoolSize" value="${jmsMaxConnectionPoolSize}" />
+        <property name="reapTimeout" value="0" />
+    </bean>
+
+
+    <bean id="jmsXaConnectionFactory" class="org.apache.activemq.ActiveMQXAConnectionFactory">
+        <property name="brokerURL" value="tcp://localhost:61616" />
+        <property name="redeliveryPolicy">
+            <bean class="org.apache.activemq.RedeliveryPolicy">
+                <property name="maximumRedeliveries" value="0"/>
+            </bean>
+        </property>
+    </bean>
+
+    <bean id="jmsNonXaConnectionFactory" class="org.apache.activemq.ActiveMQConnectionFactory">
+        <property name="brokerURL" value="tcp://localhost:61616" />
+        <property name="redeliveryPolicy">
+            <bean class="org.apache.activemq.RedeliveryPolicy">
+                <property name="maximumRedeliveries" value="0"/>
+            </bean>
+        </property>
+    </bean>
+
+    <bean id="atomikosXaDataSourceBean" class="com.atomikos.jdbc.AtomikosDataSourceBean">
+        <property name="uniqueResourceName" value="ds1" />
+        <property name="testQuery" value="select 1" />
+        <property name="xaDataSource" ref="sqlServerXADataSource" />
+        <property name="minPoolSize" value="2"/>
+        <property name="maxPoolSize" value="${dsMaxConnectionPoolSize}"/>
+        <property name="reapTimeout" value="0" />
+    </bean>
+
+    <bean id="sqlServerXADataSource" class="com.microsoft.sqlserver.jdbc.SQLServerXADataSource">
+        <property name="serverName" value="${dbServerName}" />
+        <property name="portNumber" value="${dbServerPort}" />
+        <property name="selectMethod" value="cursor" />
+        <property name="databaseName" value="${dbName}" />
+        <property name="user" value="${dbUser}" />
+        <property name="password" value="${dbPassword}" />
+    </bean>
+
+    <bean id="sqlServerNonXADataSource" class="com.microsoft.sqlserver.jdbc.SQLServerDataSource">
+        <property name="serverName" value="${dbServerName}" />
+        <property name="portNumber" value="${dbServerPort}" />
+        <property name="selectMethod" value="cursor" />
+        <property name="databaseName" value="${dbName}" />
+        <property name="user" value="${dbUser}" />
+        <property name="password" value="${dbPassword}" />
+    </bean>
+
+</blueprint>

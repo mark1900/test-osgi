@@ -1,0 +1,5 @@
+syntax: glob
+test-osgi-blueprint-xa-atomikos/.classpath
+test-osgi-blueprint-xa-atomikos/.project
+test-osgi-blueprint-xa-atomikos/.settings
+test-osgi-blueprint-xa-atomikos/target
