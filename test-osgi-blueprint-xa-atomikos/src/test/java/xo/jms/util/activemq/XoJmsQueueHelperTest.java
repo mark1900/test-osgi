@@ -6,7 +6,6 @@ package xo.jms.util.activemq;
 import junit.framework.Assert;
 
 import org.apache.activemq.ActiveMQConnectionFactory;
-import org.junit.Test;
 
 /**
  *  Please ensure ServiceMix is running before running this test, as
@@ -25,8 +24,6 @@ public class XoJmsQueueHelperTest
     }
 
 
-
-    @Test
     public void testMessageCommunication() throws Exception
     {
 //        <bean id="jmsNonXaConnectionFactory" class="org.apache.activemq.ActiveMQConnectionFactory">
@@ -67,4 +64,10 @@ public class XoJmsQueueHelperTest
 
     }
 
+
+    public static void main( String [] args ) throws Exception
+    {
+        XoJmsQueueHelperTest xoJmsQueueHelperTest = new XoJmsQueueHelperTest();
+        xoJmsQueueHelperTest.testMessageCommunication();
+    }
 }

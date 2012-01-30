@@ -5,8 +5,8 @@ package xo.transaction;
 
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.List;
+import java.util.Properties;
 
 import javax.transaction.TransactionManager;
 
@@ -27,56 +27,97 @@ public class XoTransactionProxyHandler implements InvocationHandler
 
     protected PlatformTransactionManager platformTransactionManager;
 
-    protected String propagationBehaviorName;
-    protected String isolationLevelName;
-    protected int timeout;
-
     protected Object targetObject;
-    protected String targetObjectRegexMethodFilter;
 
-    protected Pattern targetObjectRegexMethodFilterPattern;
 
+    protected Properties transactionHandlerProperties;
+    protected List<XoTransactionMapping> transactionHandlerMappings;
+
+    boolean initialized;
 
     public XoTransactionProxyHandler()
     {
         standardTransactionManager = null;
         platformTransactionManager = null;
 
-        propagationBehaviorName = "PROPAGATION_REQUIRED"; // TransactionDefinition.PROPAGATION_REQUIRED
-        isolationLevelName = "ISOLATION_SERIALIZABLE";  // TransactionDefinition.ISOLATION_SERIALIZABLE
-
-        timeout = -1;  // No timeout
-
         targetObject = null;
 
-        setTargetObjectRegexMethodFilter( ".*" );
+        initialized = false;
+    }
+
+    protected synchronized void initialize()
+    {
+        if ( initialized )
+        {
+            initialized = true;
+            return;
+        }
+
+        transactionHandlerMappings = XoTransactionMapping.parseProperties( transactionHandlerProperties );
+
+
+        if ( LOG.isDebugEnabled() )
+        {
+            LOG.debug( "XoTransactionProxyHandler initialized."
+                    + "  " + this.toString()
+                    );
+
+        }
 
     }
 
 
-    @Override
+
+    protected XoTransactionMapping getTransactionHandlerMapping( Method method )
+    {
+        for ( XoTransactionMapping transactionHandlerMapping : transactionHandlerMappings )
+        {
+            if ( transactionHandlerMapping.isMatch( method.getName() ) )
+            {
+                return transactionHandlerMapping;
+            }
+        }
+
+        return null;
+    }
+
+
+    /**
+     * Handle Transactions!
+     *
+     *
+     * {@inheritDoc}
+     */
     public Object invoke( Object proxyObject, Method method, Object[] args ) throws Throwable
     {
 
+        initialize();
+
         Object returnValue;
 
-        Matcher matcher = targetObjectRegexMethodFilterPattern.matcher( method.getName() );
+        XoTransactionMapping xoTransactionMapping = getTransactionHandlerMapping( method );
 
-        if ( matcher.find() )
+        if ( null != xoTransactionMapping )
         {
 
+            Throwable thrownObject = null;
             try
             {
+                if ( LOG.isDebugEnabled() )
+                {
+                    LOG.debug( "Begin Transaction Handling"
+                            + " - " + targetObject.getClass().getName() + "." + method.getName() + "(...)"
+                            + " -> " + xoTransactionMapping.toString() );
 
-                LOG.debug( "Begin Transaction Handling [" + this.toString() + "]" );
+                }
 
                 if ( null != platformTransactionManager )
                 {
-                    returnValue = doTransactionWithPlatformTransactionManager( proxyObject, method, args );
+                    returnValue = doTransactionWithPlatformTransactionManager( xoTransactionMapping, proxyObject, method, args );
                 }
                 else if ( null != standardTransactionManager )
                 {
-                    returnValue = doTransactionWithStandardTransactionManager( proxyObject, method, args );
+                    returnValue = doTransactionWithStandardTransactionManager( xoTransactionMapping, proxyObject, method, args );
                 }
                 else
                 {
@@ -84,9 +125,23 @@ public class XoTransactionProxyHandler implements InvocationHandler
                 }
 
             }
+            catch ( Throwable t )
+            {
+                thrownObject = t;
+                throw t;
+            }
             finally
             {
-                LOG.debug( "End Transaction Handling [" + this.toString() + "]" );
+                if ( null == thrownObject )
+                {
+                    LOG.debug( "End Transaction Handling with Success." );
+                }
+                else
+                {
+                    LOG.debug( "End Transaction Handling with object thrown:  "
+                               + thrownObject.getClass().getName()
+                               + "  [" + thrownObject.getMessage() + "]" );
+                }
             }
 
         }
@@ -101,11 +156,10 @@ public class XoTransactionProxyHandler implements InvocationHandler
 
     }
 
-    public Object doTransactionWithPlatformTransactionManager(
+    protected Object doTransactionWithPlatformTransactionManager(
+        XoTransactionMapping xoTransactionMapping,
         @SuppressWarnings( "unused" ) Object proxyObject, Method method, Object[] args )
     {
-
-        LOG.debug( "doTransactionCommit() -> BEGIN" );
 
         Object returnValue;
 
@@ -116,9 +170,10 @@ public class XoTransactionProxyHandler implements InvocationHandler
             TransactionDefinition platformTransactionDefinition;
             {
                 DefaultTransactionDefinition defaultTransactionDefinition = new DefaultTransactionDefinition();
-                defaultTransactionDefinition.setPropagationBehaviorName( propagationBehaviorName );
-                defaultTransactionDefinition.setIsolationLevelName( isolationLevelName );
-                defaultTransactionDefinition.setTimeout( timeout );
+                defaultTransactionDefinition.setPropagationBehaviorName( xoTransactionMapping.getPropagationBehaviorName() );
+                defaultTransactionDefinition.setIsolationLevelName( xoTransactionMapping.getIsolationLevelName() );
+                defaultTransactionDefinition.setReadOnly( xoTransactionMapping.isReadOnly() );
+                defaultTransactionDefinition.setTimeout( xoTransactionMapping.getTimeout() );
 
                 platformTransactionDefinition = defaultTransactionDefinition;
             }
@@ -157,18 +212,14 @@ public class XoTransactionProxyHandler implements InvocationHandler
             throw new RuntimeException( e1 );
         }
 
-
-        LOG.debug( "doTransactionCommit() <- END" );
-
         return returnValue;
 
     }
 
-    public Object doTransactionWithStandardTransactionManager(
+    protected Object doTransactionWithStandardTransactionManager(
+        @SuppressWarnings( "unused" ) XoTransactionMapping xoTransactionMapping,
         @SuppressWarnings( "unused" ) Object proxyObject, Method method, Object[] args )
     {
-
-        LOG.debug( "doTransactionCommit() -> BEGIN" );
 
         Object returnValue;
 
@@ -196,8 +247,6 @@ public class XoTransactionProxyHandler implements InvocationHandler
 
             throw new RuntimeException( e1 );
         }
-
-        LOG.debug( "doTransactionCommit() <- END" );
 
         return returnValue;
 
@@ -239,61 +288,6 @@ public class XoTransactionProxyHandler implements InvocationHandler
         this.platformTransactionManager = platformTransactionManager;
     }
 
-
-    /**
-     * @return the propagationBehaviorName
-     */
-    public String getPropagationBehaviorName()
-    {
-        return propagationBehaviorName;
-    }
-
-
-    /**
-     * @param propagationBehaviorName the propagationBehaviorName to set
-     */
-    public void setPropagationBehaviorName( String propagationBehaviorName )
-    {
-        this.propagationBehaviorName = propagationBehaviorName;
-    }
-
-
-    /**
-     * @return the isolationLevelName
-     */
-    public String getIsolationLevelName()
-    {
-        return isolationLevelName;
-    }
-
-
-    /**
-     * @param isolationLevelName the isolationLevelName to set
-     */
-    public void setIsolationLevelName( String isolationLevelName )
-    {
-        this.isolationLevelName = isolationLevelName;
-    }
-
-
-    /**
-     * @return the timeout
-     */
-    public int getTimeout()
-    {
-        return timeout;
-    }
-
-
-    /**
-     * @param timeout the timeout to set
-     */
-    public void setTimeout( int timeout )
-    {
-        this.timeout = timeout;
-    }
-
-
     /**
      * @return the targetObject
      */
@@ -313,25 +307,24 @@ public class XoTransactionProxyHandler implements InvocationHandler
 
 
 
+    /**
+     * @return the transactionHandlerProperties
+     */
+    public Properties getTransactionHandlerProperties()
+    {
+        return transactionHandlerProperties;
+    }
 
     /**
-     * @return the targetObjectRegexMethodFilter
+     * @param transactionHandlerProperties the transactionHandlerProperties to set
      */
-    public String getTargetObjectRegexMethodFilter()
+    public void setTransactionHandlerProperties( Properties transactionHandlerProperties )
     {
-        return targetObjectRegexMethodFilter;
+        this.transactionHandlerProperties = transactionHandlerProperties;
     }
 
 
-    /**
-     * @param targetObjectRegexMethodFilter the targetObjectRegexMethodFilter to set
-     */
-    public void setTargetObjectRegexMethodFilter( String targetObjectRegexMethodFilter )
-    {
-        this.targetObjectRegexMethodFilter = targetObjectRegexMethodFilter;
-        targetObjectRegexMethodFilterPattern = Pattern.compile( targetObjectRegexMethodFilter, Pattern.DOTALL | Pattern.MULTILINE  );
 
-    }
 
 
     /**
@@ -341,11 +334,12 @@ public class XoTransactionProxyHandler implements InvocationHandler
     public String toString()
     {
         return "XoTransactionProxyHandler [standardTransactionManager=" + standardTransactionManager
-                + ", platformTransactionManager=" + platformTransactionManager + ", propagationBehaviorName="
-                + propagationBehaviorName + ", isolationLevelName=" + isolationLevelName + ", timeout="
-                + timeout + ", targetObject=" + targetObject + ", targetObjectRegexMethodFilter="
-                + targetObjectRegexMethodFilter + "]";
+                + ", platformTransactionManager=" + platformTransactionManager + ", targetObject="
+                + targetObject + ", transactionHandlerProperties=" + transactionHandlerProperties
+                + ", transactionHandlerMappings=" + transactionHandlerMappings + "]";
     }
+
+
 
 
 }

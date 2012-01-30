@@ -17,10 +17,12 @@
 
     <bean id="xoTransactionProxyHandler" class="xo.transaction.XoTransactionProxyHandler">
         <property name="platformTransactionManager" ref="jtaTransactionManager" />
-        <property name="propagationBehaviorName" value="PROPAGATION_REQUIRED" />
-        <property name="isolationLevelName" value="ISOLATION_REPEATABLE_READ" />
-        <property name="timeout" value="${transactionTimeout}" />
         <property name="targetObject" ref="transactionServiceBean" />
+        <property name="transactionHandlerProperties">
+            <props>
+                <prop key="*">PROPAGATION_REQUIRED,ISOLATION_REPEATABLE_READ,timeout=30</prop>
+            </props>
+        </property>
     </bean>
 
 
