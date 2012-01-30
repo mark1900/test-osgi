@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<blueprint xmlns="http://www.osgi.org/xmlns/blueprint/v1.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:cm="http://aries.apache.org/blueprint/xmlns/blueprint-cm/v1.1.0"
+    xsi:schemaLocation="http://www.osgi.org/xmlns/blueprint/v1.0.0 http://www.osgi.org/xmlns/blueprint/v1.0.0/blueprint.xsd
+                        http://camel.apache.org/schema/blueprint http://camel.apache.org/schema/blueprint/camel-blueprint.xsd">
+
+
+
+    <bean id="xaCamelTest" class="test.xa.camel.XaCamelTest">
+        <property name="persistenceTestHelper" ref="persistenceHelperNonXa" />
+        <property name="xaCommitTestRouteNames">
+            <array>
+                <value>xaCommitTestRoute</value>
+            </array>
+        </property>
+        <property name="xaRollbackTestRouteNames">
+            <array>
+                <value>xaRollbackBecauseOfBadSqlTestRoute</value>
+                <value>xaRollbackBeforeDbTestRoute</value>
+                <value>xaRollbackAfterDbTestRoute</value>
+                <value>xaRollbackBeforeCamelTransactedTagTestRoute</value>
+                <value>xaRollbackWithRawExceptionThrownTestRoute</value>
+                <value>xaRollbackWithRuntimeExceptionInBeanTestRoute</value>
+                <value>xaRollbackWithExceptionInBeanTestRoute</value>
+            </array>
+        </property>
+    </bean>
+
+    <bean id="anIllegalArgumentException" class="java.lang.IllegalArgumentException">
+        <argument value="Unexpected Arguments" />
+    </bean>
+    <bean id="anException" class="java.lang.Exception">
+        <argument value="Unexpected" />
+    </bean>
+
+    <bean id="dataInsertionBean" class="test.xa.camel.DataInsertionBean">
+        <property name="xaTestPersistenceHelper" ref="persistenceHelperXa" />
+    </bean>
+
+
+    <bean id="xaCamelTestBean" class="test.xa.camel.CamelTestBean">
+    </bean>
+
+
+    <!-- http://camel.apache.org/transactional-client.html -->
+
+    <camelContext xmlns="http://camel.apache.org/schema/blueprint">
+
+        <route id="xaCommitTestRoute">
+            <from uri="activemq:queue:test-xaCommitTestRoute" />
+            <transacted ref="PROPAGATION_REQUIRED" />
+            <to uri="log:+++ Before Database Call +++" />
+            <bean ref="xaCamelTestBean" method="toInsertSql" />
+            <bean ref="dataInsertionBean" />
+            <to uri="log:+++ After Database Call +++" />
+        </route>
+        <route id="xaRollbackBecauseOfBadSqlTestRoute">
+            <from uri="activemq:queue:test-xaRollbackBecauseOfBadSqlTestRoute" />
+            <transacted ref="PROPAGATION_REQUIRED" />
+            <to uri="log:+++ Before Database Call +++" />
+            <bean ref="xaCamelTestBean" method="toInsertSql" />
+            <transform>
+                <simple>SELECT BAD_SQL</simple>
+            </transform>
+            <bean ref="dataInsertionBean" />
+            <to uri="log:+++ After Database Call +++" />
+        </route>
+        <route id="xaRollbackBeforeDbTestRoute">
+            <from uri="activemq:queue:test-xaRollbackBeforeDbTestRoute" />
+            <transacted ref="PROPAGATION_REQUIRED" />
+            <throwException ref="anIllegalArgumentException" />
+            <to uri="log:+++ Before Database Call +++" />
+            <bean ref="xaCamelTestBean" method="toInsertSql" />
+            <to uri="log:+++ After Database Call +++" />
+        </route>
+        <route id="xaRollbackAfterDbTestRoute">
+            <from uri="activemq:queue:test-xaRollbackAfterDbTestRoute" />
+            <transacted ref="PROPAGATION_REQUIRED" />
+            <to uri="log:+++ Before Database Call +++" />
+            <bean ref="xaCamelTestBean" method="toInsertSql" />
+            <to uri="log:+++ After Database Call +++" />
+            <throwException ref="anIllegalArgumentException" />
+        </route>
+        <route id="xaRollbackBeforeCamelTransactedTagTestRoute">
+            <from uri="activemq:queue:test-xaRollbackBeforeCamelTransactedTagTestRoute" />
+            <throwException ref="anIllegalArgumentException" />
+            <transacted ref="PROPAGATION_REQUIRED" />
+            <to uri="log:+++ Before Database Call +++" />
+            <bean ref="xaCamelTestBean" method="toInsertSql" />
+            <to uri="log:+++ After Database Call +++" />
+        </route>
+        <route id="xaRollbackWithRawExceptionThrownTestRoute">
+            <from uri="activemq:queue:test-xaRollbackWithRawExceptionThrownTestRoute" />
+            <transacted ref="PROPAGATION_REQUIRED" />
+            <to uri="log:+++ Before Database Call +++" />
+            <bean ref="xaCamelTestBean" method="toInsertSql" />
+            <to uri="log:+++ After Database Call +++" />
+            <throwException ref="anException" />
+        </route>
+        <route id="xaRollbackWithRuntimeExceptionInBeanTestRoute">
+            <from uri="activemq:queue:test-xaRollbackWithRuntimeExceptionInBeanTestRoute" />
+            <transacted ref="PROPAGATION_REQUIRED" />
+            <to uri="log:+++ Before Database Call +++" />
+            <bean ref="xaCamelTestBean" method="toRuntimeException" />
+            <to uri="log:+++ After Database Call +++" />
+        </route>
+        <route id="xaRollbackWithExceptionInBeanTestRoute">
+            <from uri="activemq:queue:test-xaRollbackWithExceptionInBeanTestRoute" />
+            <transacted ref="PROPAGATION_REQUIRED" />
+            <to uri="log:+++ Before Database Call +++" />
+            <bean ref="xaCamelTestBean" method="toException" />
+            <to uri="log:+++ After Database Call +++" />
+        </route>
+    </camelContext>
+
+</blueprint>
