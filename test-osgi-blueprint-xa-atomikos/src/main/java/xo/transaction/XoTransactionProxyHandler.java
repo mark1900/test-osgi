@@ -4,6 +4,7 @@
 package xo.transaction;
 
 import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Properties;
@@ -158,7 +159,7 @@ public class XoTransactionProxyHandler implements InvocationHandler
 
     protected Object doTransactionWithPlatformTransactionManager(
         XoTransactionMapping xoTransactionMapping,
-        @SuppressWarnings( "unused" ) Object proxyObject, Method method, Object[] args )
+        @SuppressWarnings( "unused" ) Object proxyObject, Method method, Object[] args ) throws Throwable
     {
 
         Object returnValue;
@@ -185,7 +186,7 @@ public class XoTransactionProxyHandler implements InvocationHandler
         catch ( Exception e )
         {
             LOG.error( "Transaction failed:  ", e );
-            throw new RuntimeException( e );
+            throw e;
         }
 
         try
@@ -197,7 +198,14 @@ public class XoTransactionProxyHandler implements InvocationHandler
         }
         catch ( Exception e1 )
         {
-            LOG.error( "Commit failed:  ", e1 );
+            if ( e1 instanceof InvocationTargetException )
+            {
+                LOG.error( "Commit failed:  ", e1.getCause() );
+            }
+            else
+            {
+                LOG.error( "Commit failed:  ", e1 );
+            }
 
             try
             {
@@ -206,10 +214,18 @@ public class XoTransactionProxyHandler implements InvocationHandler
             catch ( Exception e2 )
             {
                 LOG.error( "Rollback failed:  ", e2 );
-                throw new RuntimeException( e2 );
+
+                throw e2;
             }
 
-            throw new RuntimeException( e1 );
+            if ( e1 instanceof InvocationTargetException )
+            {
+                //  Don't throw wrapped exception, throw the real cause.
+                throw e1.getCause();
+            }
+
+            throw e1;
+
         }
 
         return returnValue;
@@ -218,7 +234,7 @@ public class XoTransactionProxyHandler implements InvocationHandler
 
     protected Object doTransactionWithStandardTransactionManager(
         @SuppressWarnings( "unused" ) XoTransactionMapping xoTransactionMapping,
-        @SuppressWarnings( "unused" ) Object proxyObject, Method method, Object[] args )
+        @SuppressWarnings( "unused" ) Object proxyObject, Method method, Object[] args ) throws Throwable
     {
 
         Object returnValue;
@@ -226,14 +242,20 @@ public class XoTransactionProxyHandler implements InvocationHandler
         try
         {
             standardTransactionManager.begin();
-
             returnValue = method.invoke( this.targetObject, args );
             standardTransactionManager.commit();
 
         }
         catch ( Exception e1 )
         {
-            LOG.error( "Commit failed:  ", e1 );
+            if ( e1 instanceof InvocationTargetException )
+            {
+                LOG.error( "Commit failed:  ", e1.getCause() );
+            }
+            else
+            {
+                LOG.error( "Commit failed:  ", e1 );
+            }
 
             try
             {
@@ -242,10 +264,16 @@ public class XoTransactionProxyHandler implements InvocationHandler
             catch ( Exception e2 )
             {
                 LOG.error( "Rollback failed:  ", e2 );
-                throw new RuntimeException( e2 );
+                throw e2;
             }
 
-            throw new RuntimeException( e1 );
+            if ( e1 instanceof InvocationTargetException )
+            {
+                //  Don't throw wrapped exception, throw the real cause.
+                throw e1.getCause();
+            }
+
+            throw e1;
         }
 
         return returnValue;
