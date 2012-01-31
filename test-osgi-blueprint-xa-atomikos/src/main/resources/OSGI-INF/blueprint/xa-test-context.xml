@@ -25,6 +25,8 @@
                     </bean>
                 </property>
                 <property name="timeout" value="1000"/>
+                <property name="requestSizeMaximum" value="${requestSizeMaximum}" />
+                <property name="responseSizeMaximum" value="${responseSizeMaximum}" />
             </bean>
         </property>
         <property name="xoJmsHelper">
@@ -51,6 +53,8 @@
                     </bean>
                 </property>
                 <property name="timeout" value="500"/>
+                <property name="requestSizeMaximum" value="${requestSizeMaximum}" />
+                <property name="responseSizeMaximum" value="${responseSizeMaximum}" />
             </bean>
         </property>
         <property name="xoJmsHelper">

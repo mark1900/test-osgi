@@ -20,17 +20,22 @@ import java.util.List;
 @SuppressWarnings( "static-method" )
 public class XoJdbcHelper
 {
-    public static final int DEFAULT_TIMEOUT = 15000;
 
     protected XoJdbcConnectionHelper xoJdbcConnectionHelper;
 
     protected int timeout;
 
+    protected int requestSizeMaximum;
+    protected int responseSizeMaximum;
+
 
     public XoJdbcHelper()
     {
         this.xoJdbcConnectionHelper = null;
-        timeout = DEFAULT_TIMEOUT;
+        timeout = 15000;
+
+        requestSizeMaximum = Integer.MAX_VALUE;
+        responseSizeMaximum = Integer.MAX_VALUE;
     }
 
 
@@ -89,6 +94,14 @@ public class XoJdbcHelper
     public int [] batchUpdate( String sql, XoBatchPreparedStatementSetter xoBatchPreparedStatementSetter )
     {
 
+        if ( requestSizeMaximum > 0 && xoBatchPreparedStatementSetter.getBatchSize() > requestSizeMaximum )
+        {
+            throw new XoJdbcException(
+                "Request size of " + xoBatchPreparedStatementSetter.getBatchSize()
+                + " exceeds maximum allowable:  " + requestSizeMaximum + "." );
+
+        }
+
         Connection connection = null;
         PreparedStatement preparedStatement = null;
         int [] rowsUpdated;
@@ -120,6 +133,13 @@ public class XoJdbcHelper
 
     }
 
+
+    public <T> List<T> queryForList( String sql, Object[] objects, XoRowMapper<T> xoRowMapper )
+    {
+        // Fail hard if the responseSizeMaximum value is exceeded.
+        return queryForList( sql, objects, xoRowMapper, null );
+    }
+
     /**
      * Used for retrieving rows/lists of data.
      *
@@ -128,13 +148,19 @@ public class XoJdbcHelper
      * @param xoRowMapper
      * @return
      */
-    public <T> List<T> queryForList( String sql, Object[] objects, XoRowMapper<T> xoRowMapper )
+    public <T> List<T> queryForList( String sql, Object[] objects, XoRowMapper<T> xoRowMapper, Integer resultSizeMaximum )
     {
+
+        Integer resultSizeMaximumValue = resultSizeMaximum;
+        if ( null != resultSizeMaximumValue && resultSizeMaximumValue < 1 )
+        {
+            resultSizeMaximumValue = null;
+        }
 
         Connection connection = null;
         PreparedStatement preparedStatement = null;
         ResultSet resultSet = null;
-        List<T> result = null;
+        List<T> results = null;
 
         try
         {
@@ -143,7 +169,20 @@ public class XoJdbcHelper
             setPreparedStatementValues( preparedStatement, objects );
             resultSet = preparedStatement.executeQuery();
 
-            result = new XoRowMapperResultGetter<T>( xoRowMapper ).getList( resultSet );
+            if ( null == resultSizeMaximumValue )
+            {
+                results = new XoRowMapperResultGetter<T>( xoRowMapper ).getList( resultSet, responseSizeMaximum + 1 );
+
+                if ( results.size() > responseSizeMaximum )
+                {
+                    throw new XoJdbcException(
+                       "Result size exceeds the maximum allowable:  " + responseSizeMaximum + "." );
+                }
+            }
+            else
+            {
+                results = new XoRowMapperResultGetter<T>( xoRowMapper ).getList( resultSet, resultSizeMaximumValue );
+            }
 
         }
         catch ( SQLException e )
@@ -157,7 +196,7 @@ public class XoJdbcHelper
             xoJdbcConnectionHelper.closeConnection( connection );
         }
 
-        return result;
+        return results;
     }
 
 
@@ -256,6 +295,12 @@ public class XoJdbcHelper
     }
 
 
+    public <T> List<T> queryForObjectList( String sql, Object[] objects, int returnColumnIndex, Class<T> returnType ) throws XoJdbcException
+    {
+        // Fail hard if the responseSizeMaximum value is exceeded.
+        return queryForObjectList( sql, objects, returnColumnIndex, returnType, null );
+    }
+
     /**
      * Retrieve a list of column result values.
      *
@@ -267,8 +312,15 @@ public class XoJdbcHelper
      * @throws XoJdbcException
      */
     @SuppressWarnings( "unchecked" )
-    public <T> List<T> queryForObjectList( String sql, Object[] objects, int returnColumnIndex, Class<T> returnType ) throws XoJdbcException
+    public <T> List<T> queryForObjectList( String sql, Object[] objects, int returnColumnIndex, Class<T> returnType,
+            Integer resultSizeMaximum ) throws XoJdbcException
     {
+
+        Integer resultSizeMaximumValue = resultSizeMaximum;
+        if ( null != resultSizeMaximumValue && resultSizeMaximumValue < 1 )
+        {
+            resultSizeMaximumValue = null;
+        }
 
         Connection connection = null;
         PreparedStatement preparedStatement = null;
@@ -284,9 +336,23 @@ public class XoJdbcHelper
             setPreparedStatementValues( preparedStatement, objects );
             resultSet = preparedStatement.executeQuery();
 
+
+            int rowIndex = 0;
             while ( resultSet.next() )
             {
+                if ( null != resultSizeMaximumValue && rowIndex + 1 > resultSizeMaximumValue )
+                {
+                    break;
+                }
+
+                if ( rowIndex + 1 > responseSizeMaximum )
+                {
+                    throw new XoJdbcException(
+                        "Result size exceeds the maximum allowable:  " + responseSizeMaximum + "." );
+                }
+
                 results.add( (T)getResultSetValue( resultSet, returnColumnIndex, returnType ) );
+                rowIndex++;
             }
 
         }
@@ -589,15 +655,52 @@ public class XoJdbcHelper
     }
 
 
+
+    /**
+     * @return the requestSizeMaximum
+     */
+    public int getRequestSizeMaximum()
+    {
+        return requestSizeMaximum;
+    }
+
+
+    /**
+     * @param requestSizeMaximum the requestSizeMaximum to set
+     */
+    public void setRequestSizeMaximum( int requestSizeMaximum )
+    {
+        this.requestSizeMaximum = requestSizeMaximum;
+    }
+
+
+    /**
+     * @return the responseSizeMaximum
+     */
+    public int getResponseSizeMaximum()
+    {
+        return responseSizeMaximum;
+    }
+
+
+    /**
+     * @param responseSizeMaximum the responseSizeMaximum to set
+     */
+    public void setResponseSizeMaximum( int responseSizeMaximum )
+    {
+        this.responseSizeMaximum = responseSizeMaximum;
+    }
+
+
     /**
      * {@inheritDoc}
      */
     @Override
     public String toString()
     {
-        return "XoJdbcHelper [xoJdbcConnectionHelper=" + xoJdbcConnectionHelper + ", timeout=" + timeout + "]";
+        return "XoJdbcHelper [xoJdbcConnectionHelper=" + xoJdbcConnectionHelper + ", timeout=" + timeout
+                + ", requestSizeMaximum=" + requestSizeMaximum + ", responseSizeMaximum="
+                + responseSizeMaximum + "]";
     }
-
-
 
 }
