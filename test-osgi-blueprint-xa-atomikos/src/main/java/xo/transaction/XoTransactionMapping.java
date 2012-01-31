@@ -15,17 +15,23 @@ import java.util.regex.Pattern;
 
 public class XoTransactionMapping
 {
-    protected String methodRegexFilter;
-    protected Pattern methodRegexFilterPattern;
+    protected final String [] standardObjectClassMethodNames = {
+            "clone", "equals", "finalize", "getClass", "hashCode", "notify", "notifyAll", "toString", "wait"
+    };
+
+
+    protected String methodFilter;
+    protected Pattern methodFilterRegexPattern;
 
     protected String propagationBehaviorName;
     protected String isolationLevelName;
     protected boolean isReadOnly;
     protected int timeout;
 
+
     public XoTransactionMapping()
     {
-        methodRegexFilter = ".*";
+        methodFilter = ".*";
 
         propagationBehaviorName = "PROPAGATION_REQUIRED";
         isolationLevelName = "ISOLATION_DEFAULT";
@@ -35,38 +41,66 @@ public class XoTransactionMapping
 
     public boolean isMatch( String method )
     {
-        Matcher matcher = methodRegexFilterPattern.matcher( method );
 
-        if ( matcher.find() )
+        if ( null == methodFilterRegexPattern )
         {
-            return true;
+
+            if ( methodFilter.equals( method ) )
+            {
+                return true;
+            }
+
+            return false;
+        }
+        else if ( ".*".equals( methodFilter ) )
+        {
+            // The methodRegexFilter will NOT match these stand method names,
+            // unless they are explicitly defined.
+            for ( int i = 0; i < standardObjectClassMethodNames.length; i++ )
+            {
+                if ( standardObjectClassMethodNames[i].equals( method ) )
+                {
+                    if ( !standardObjectClassMethodNames[i].equals( methodFilter ) )
+                    {
+                        return false;
+                    }
+                }
+            }
+
         }
 
-        return false;
+        Matcher matcher = methodFilterRegexPattern.matcher( method );
+        return matcher.find();
 
-    }
-
-
-    /**
-     * @return the methodRegexFilter
-     */
-    public String getMethodRegexFilter()
-    {
-        return methodRegexFilter;
     }
 
 
 
     /**
-     * @param methodRegexFilter the methodRegexFilter to set
+     * @return the methodFilter
      */
-    public void setMethodRegexFilter( String methodRegexFilter )
+    public String getMethodFilter()
     {
-        this.methodRegexFilter = methodRegexFilter;
-        this.methodRegexFilterPattern = Pattern.compile( methodRegexFilter, Pattern.DOTALL | Pattern.MULTILINE  );
+        return methodFilter;
     }
 
+    /**
+     * @param methodFilter the methodFilter to set
+     */
+    public void setMethodFilter( String methodFilter )
+    {
+        this.methodFilter = methodFilter;
 
+        if ( methodFilter.matches( "\\w+" ) )
+        {
+            this.methodFilterRegexPattern = null;
+        }
+        else
+        {
+            this.methodFilterRegexPattern = Pattern.compile( "^" + methodFilter + "$", Pattern.DOTALL | Pattern.MULTILINE  );
+        }
+
+    }
 
     /**
      * @return the propagationBehaviorName
@@ -160,11 +194,11 @@ public class XoTransactionMapping
 
         if ( "*".equals( transactionPropertyKey ) )
         {
-            xoTransactionMapping.setMethodRegexFilter( ".*" );
+            xoTransactionMapping.setMethodFilter( ".*" );
         }
         else
         {
-            xoTransactionMapping.setMethodRegexFilter( transactionPropertyKey );
+            xoTransactionMapping.setMethodFilter( transactionPropertyKey );
         }
 
 
@@ -243,8 +277,8 @@ public class XoTransactionMapping
             public int compare( XoTransactionMapping o1, XoTransactionMapping o2 )
             {
 
-                String s1 = o1.getMethodRegexFilter();
-                String s2 = o2.getMethodRegexFilter();
+                String s1 = o1.getMethodFilter();
+                String s2 = o2.getMethodFilter();
 
                 if ( s1.length() > s2.length() )
                 {
@@ -271,8 +305,8 @@ public class XoTransactionMapping
     @Override
     public String toString()
     {
-        return "XoTransactionMapping [methodRegexFilter=" + methodRegexFilter
-                + ", methodRegexFilterPattern=" + methodRegexFilterPattern + ", propagationBehaviorName="
+        return "XoTransactionMapping [methodRegexFilter=" + methodFilter
+                + ", methodRegexFilterPattern=" + methodFilterRegexPattern + ", propagationBehaviorName="
                 + propagationBehaviorName + ", isolationLevelName=" + isolationLevelName + ", isReadOnly="
                 + isReadOnly + ", timeout=" + timeout + "]";
     }
