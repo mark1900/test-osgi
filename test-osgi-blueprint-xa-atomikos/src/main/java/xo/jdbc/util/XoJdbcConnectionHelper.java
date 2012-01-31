@@ -15,8 +15,6 @@ import javax.sql.DataSource;
 public class XoJdbcConnectionHelper
 {
 
-    public static final int DEFAULT_TIMEOUT = 15000;
-
     protected DataSource dataSource;
 
     protected boolean transactional;
@@ -28,7 +26,7 @@ public class XoJdbcConnectionHelper
     public XoJdbcConnectionHelper()
     {
         this.dataSource = null;
-        this.timeout = DEFAULT_TIMEOUT;
+        this.timeout = 15000;
 
         this.transactional = false;
         transactionIsolationLevel = java.sql.Connection.TRANSACTION_NONE;
@@ -225,6 +223,7 @@ public class XoJdbcConnectionHelper
         this.timeout = timeout;
     }
 
+
     /**
      * {@inheritDoc}
      */
@@ -234,6 +233,5 @@ public class XoJdbcConnectionHelper
         return "XoJdbcConnectionHelper [dataSource=" + dataSource + ", transactional=" + transactional
                 + ", transactionIsolationLevel=" + transactionIsolationLevel + ", timeout=" + timeout + "]";
     }
-
 
 }

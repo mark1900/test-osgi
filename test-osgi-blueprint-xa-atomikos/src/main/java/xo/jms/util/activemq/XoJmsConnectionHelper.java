@@ -17,8 +17,6 @@ import xo.jms.util.XoJmsException;
 public class XoJmsConnectionHelper
 {
 
-    public static final int DEFAULT_TIMEOUT = 15000;
-
     protected ConnectionFactory connectionFactory;
 
     protected boolean transactional;
@@ -29,7 +27,7 @@ public class XoJmsConnectionHelper
     {
         this.connectionFactory = null;
         this.transactional = false;
-        this.timeout = DEFAULT_TIMEOUT;
+        this.timeout = 15000;
     }
 
     public javax.jms.Connection getJmsConnection()
@@ -257,6 +255,5 @@ public class XoJmsConnectionHelper
         return "XoJmsConnectionHelper [connectionFactory=" + connectionFactory + ", transactional="
                 + transactional + ", timeout=" + timeout + "]";
     }
-
 
 }

@@ -17,6 +17,8 @@
             <cm:property name="dsMaxConnectionPoolSize" value="30" />
             <cm:property name="jmsMaxConnectionPoolSize" value="10" />
             <cm:property name="transactionTimeout" value="60" /> <!-- In Seconds -->
+            <cm:property name="requestSizeMaximum" value="-1" />
+            <cm:property name="responseSizeMaximum" value="10000" />
         </cm:default-properties>
     </cm:property-placeholder>
 
