@@ -151,11 +151,7 @@ public class XoJdbcHelper
     public <T> List<T> queryForList( String sql, Object[] objects, XoRowMapper<T> xoRowMapper, Integer resultSizeMaximum )
     {
 
-        Integer resultSizeMaximumValue = resultSizeMaximum;
-        if ( null != resultSizeMaximumValue && resultSizeMaximumValue < 1 )
-        {
-            resultSizeMaximumValue = null;
-        }
+        Integer resultSizeMaximumValue = getPositiveValue( resultSizeMaximum );
 
         Connection connection = null;
         PreparedStatement preparedStatement = null;
@@ -171,7 +167,7 @@ public class XoJdbcHelper
 
             if ( null == resultSizeMaximumValue )
             {
-                results = new XoRowMapperResultGetter<T>( xoRowMapper ).getList( resultSet, responseSizeMaximum + 1 );
+                results = new XoRowMapperResultGetter<T>( xoRowMapper ).getList( resultSet, getPositiveSum( responseSizeMaximum,  1 ) );
 
                 if ( results.size() > responseSizeMaximum )
                 {
@@ -197,6 +193,61 @@ public class XoJdbcHelper
         }
 
         return results;
+    }
+
+    protected Integer getPositiveValue( Integer value )
+    {
+
+        if ( null == value )
+        {
+            return null;
+        }
+        else if ( value < 1 )
+        {
+            return null;
+        }
+
+        return value;
+    }
+
+    protected Integer getPositiveSum( Integer i, Integer j )
+    {
+
+        Integer ii = getPositiveValue( i );
+        Integer jj = getPositiveValue( j );
+
+        if ( null == ii && null == jj )
+        {
+            return null;
+        }
+
+        if ( null == ii )
+        {
+            return null;
+        }
+
+        if ( null == jj )
+        {
+            return null;
+        }
+
+
+        //  Here we have two values to sum together
+        Long value = new Long( ii ) + new Long( jj );
+
+        if ( value > Integer.MAX_VALUE )
+        {
+            return Integer.MAX_VALUE;
+        }
+        else if ( value < 1 )
+        {
+            return null;
+        }
+        else
+        {
+            return value.intValue();
+        }
+
     }
 
 
@@ -316,11 +367,7 @@ public class XoJdbcHelper
             Integer resultSizeMaximum ) throws XoJdbcException
     {
 
-        Integer resultSizeMaximumValue = resultSizeMaximum;
-        if ( null != resultSizeMaximumValue && resultSizeMaximumValue < 1 )
-        {
-            resultSizeMaximumValue = null;
-        }
+        Integer resultSizeMaximumValue = getPositiveValue( resultSizeMaximum );
 
         Connection connection = null;
         PreparedStatement preparedStatement = null;
@@ -702,5 +749,6 @@ public class XoJdbcHelper
                 + ", requestSizeMaximum=" + requestSizeMaximum + ", responseSizeMaximum="
                 + responseSizeMaximum + "]";
     }
+
 
 }

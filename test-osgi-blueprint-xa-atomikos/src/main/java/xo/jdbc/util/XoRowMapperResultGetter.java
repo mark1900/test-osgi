@@ -35,23 +35,7 @@ public class XoRowMapperResultGetter<T>
 
     public List<T> getList( ResultSet resultSet, Integer resultSizeMaximum ) throws SQLException
     {
-        Integer resultSizeMaximumValue = resultSizeMaximum;
-
-        if ( null != resultSizeMaximumValue && resultSizeMaximumValue < 1 )
-        {
-            resultSizeMaximumValue = null;
-        }
-
-        List<T> results;
-
-        if ( null == resultSizeMaximumValue )
-        {
-            results = new ArrayList<T>( listBufferSize );
-        }
-        else
-        {
-            results = new ArrayList<T>( resultSizeMaximum );
-        }
+        List<T> results = new ArrayList<T>( listBufferSize );
 
         int rowIndex = 0;
         while ( resultSet.next() )
@@ -76,5 +60,4 @@ public class XoRowMapperResultGetter<T>
         return "XoRowMapperResultGetter [listBufferSize=" + listBufferSize + ", xoRowMapper=" + xoRowMapper
                 + "]";
     }
-
 }
